@@ -15,7 +15,7 @@ export default function PreviewArea({ cards, settings }: PreviewAreaProps) {
   const handleExport = async (card: CardType) => {
     const element = cardRefs.current.get(card.id)
     if (element) {
-      await exportCard(element, `card-${card.id}.png`)
+      await exportCard(element)
     }
   }
 

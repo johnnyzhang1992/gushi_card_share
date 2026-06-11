@@ -6,12 +6,14 @@ import type { CardSettings, Card } from './types/card'
 import { loadCustomFonts } from './utils/fontManager'
 import { splitIntoCards } from './utils/textSplitter'
 
+const SETTINGS_VERSION = 1
+
 const defaultSettings: CardSettings = {
   ratio: '3:4',
   backgroundColor: '#f5f0e8',
   backgroundImage: null,
   fontSize: 18,
-  lineHeight: 1.8,
+  lineHeight: 1.6,
   paddingX: 40,
   paddingY: 40,
   color: '#333333',
@@ -44,7 +46,11 @@ function App() {
 
   const [settings, setSettings] = useState<CardSettings>(() => {
     const saved = localStorage.getItem('poetry-settings')
-    return saved ? JSON.parse(saved) : defaultSettings
+    const savedVersion = localStorage.getItem('poetry-settings-version')
+    if (saved && savedVersion === String(SETTINGS_VERSION)) {
+      return JSON.parse(saved)
+    }
+    return defaultSettings
   })
 
   const [cards, setCards] = useState<Card[]>([])
@@ -55,6 +61,7 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem('poetry-settings', JSON.stringify(settings))
+    localStorage.setItem('poetry-settings-version', String(SETTINGS_VERSION))
   }, [settings])
 
   useEffect(() => {

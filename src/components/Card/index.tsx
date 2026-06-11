@@ -42,7 +42,7 @@ function renderBlock(block: CardType['blocks'][0], settings: CardSettings, scale
 
   if (isTitle) {
     return (
-      <div key={block.id} style={{ ...baseStyle, fontWeight: 'bold', marginBottom: `${baseFontSize * settings.titleMarginBottom * scale}px` }}>
+      <div key={block.id} style={{ ...baseStyle, fontWeight: 500, marginBottom: `${baseFontSize * settings.titleMarginBottom * scale}px` }}>
         {block.content}
       </div>
     )
