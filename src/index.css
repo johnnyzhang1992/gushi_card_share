@@ -12,3 +12,86 @@ body {
   width: 100%;
   height: 100vh;
 }
+
+/* 打印样式 */
+.print-container {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-container,
+  .print-container * {
+    visibility: visible;
+  }
+
+  .print-container {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+
+  .print-page {
+    width: 210mm;
+    height: 297mm;
+    page-break-after: always;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    position: relative;
+    background: white;
+  }
+
+  .print-page:last-child {
+    page-break-after: auto;
+  }
+
+  .print-content {
+    width: 100%;
+    height: 100%;
+    padding: 40px;
+    box-sizing: border-box;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .print-header,
+  .print-footer {
+    position: absolute;
+    left: 40px;
+    right: 40px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #999;
+  }
+
+  .print-header {
+    top: 10px;
+  }
+
+  .print-footer {
+    bottom: 10px;
+  }
+
+  /* PDF 书签支持 */
+  h1 {
+    bookmark-level: 1;
+    bookmark-label: content(text);
+  }
+
+  h2 {
+    bookmark-level: 2;
+    bookmark-label: content(text);
+  }
+
+  h3 {
+    bookmark-level: 3;
+    bookmark-label: content(text);
+  }
+}

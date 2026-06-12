@@ -62,7 +62,7 @@ function renderBlock(block: CardType['blocks'][0], settings: CardSettings, scale
       : { paddingLeft: '0.5em' }
     return (
       <div key={block.id} style={baseStyle}>
-        <span style={{ ...quoteStyle, opacity: 0.6 }}>
+        <span style={{ ...quoteStyle, opacity: 0.8 }}>
           {block.content}
         </span>
       </div>

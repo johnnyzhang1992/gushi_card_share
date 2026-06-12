@@ -16,28 +16,48 @@ export default function BookReader() {
   const [showEditor, setShowEditor] = useState(false)
   const [editContent, setEditContent] = useState('')
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+  const [isMobile, setIsMobile] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const flipBookRef = useRef<any>(null)
+  const [printPages, setPrintPages] = useState<string[]>([])
 
   useEffect(() => {
     if (id) loadBook(id)
+    // 组件卸载时恢复原始标题
+    return () => {
+      document.title = '古诗卡片分享'
+    }
   }, [id])
 
   useEffect(() => {
     const updateSize = () => {
-      // A4 宽高比 1:1.414（宽:高），双页模式
+      // 检测是否是移动端（屏幕宽度 <= 768px）
+      const mobile = window.innerWidth <= 768
+      setIsMobile(mobile)
+
+      // A4 宽高比 1:1.414（宽:高）
       const ASPECT_RATIO = 1.414
       const availableHeight = window.innerHeight - 48 - 40 - 32
       const availableWidth = window.innerWidth - 64
       // 单页宽度
       const pageWidth = Math.floor(availableHeight / ASPECT_RATIO)
-      // 限制单页宽度不超过可用宽度的一半
-      const maxWidth = Math.floor(availableWidth / 2)
-      const finalPageWidth = Math.min(pageWidth, maxWidth)
-      setContainerSize({
-        width: finalPageWidth,
-        height: Math.floor(finalPageWidth * ASPECT_RATIO),
-      })
+
+      if (mobile) {
+        // 移动端：单页模式，宽度不超过屏幕
+        const finalPageWidth = Math.min(pageWidth, availableWidth)
+        setContainerSize({
+          width: finalPageWidth,
+          height: Math.floor(finalPageWidth * ASPECT_RATIO),
+        })
+      } else {
+        // PC端：双页模式，宽度不超过屏幕一半
+        const maxWidth = Math.floor(availableWidth / 2)
+        const finalPageWidth = Math.min(pageWidth, maxWidth)
+        setContainerSize({
+          width: finalPageWidth,
+          height: Math.floor(finalPageWidth * ASPECT_RATIO),
+        })
+      }
     }
     updateSize()
     window.addEventListener('resize', updateSize)
@@ -49,8 +69,92 @@ export default function BookReader() {
       const { html, toc: parsedToc } = parseMarkdown(content)
       setToc(parsedToc)
       paginateContent(html)
+      // 为打印重新分页
+      paginateForPrint(html)
     }
   }, [content, containerSize])
+
+  const paginateForPrint = (html: string) => {
+    const padding = 40
+    // A4 尺寸：210mm x 297mm，按 96 DPI 换算为像素
+    const A4_WIDTH = 794
+    const A4_HEIGHT = 1123
+    const printWidth = A4_WIDTH - padding * 2
+    const printHeight = A4_HEIGHT - padding * 2
+
+    // 调试：打印计算值
+    console.log('=== Print Pagination Debug ===')
+    console.log('A4 width:', A4_WIDTH, 'A4 height:', A4_HEIGHT)
+    console.log('printWidth:', printWidth)
+    console.log('printHeight:', printHeight)
+    console.log('availableHeight (printHeight - 100):', printHeight - 100)
+    console.log('============================')
+
+    const tempDiv = document.createElement('div')
+    tempDiv.style.cssText = `
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      width: ${printWidth}px;
+      font-size: 15px;
+      line-height: 1.8;
+      padding: 0;
+      margin: 0;
+      box-sizing: border-box;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #1f2937;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    `
+    document.body.appendChild(tempDiv)
+
+    // 可用高度，留足页眉页脚空间
+    const availableHeight = printHeight - 100
+    const atoms = splitIntoAtoms(html)
+    const newPages: string[] = []
+    let currentHTML = ''
+
+    // 辅助函数：测量 HTML 高度
+    const measureHeight = (htmlContent: string): number => {
+      tempDiv.innerHTML = htmlContent
+      return tempDiv.scrollHeight
+    }
+
+    for (const atom of atoms) {
+      if (atom.startsWith('%%PAGE_BREAK%%') && currentHTML) {
+        newPages.push(currentHTML)
+        currentHTML = atom.replace('%%PAGE_BREAK%%', '')
+        continue
+      }
+
+      const cleanAtom = atom.replace('%%PAGE_BREAK%%', '')
+      const testHTML = currentHTML + cleanAtom
+      const testHeight = measureHeight(testHTML)
+
+      if (testHeight > availableHeight) {
+        if (currentHTML) {
+          newPages.push(currentHTML)
+        }
+        currentHTML = cleanAtom
+      } else {
+        currentHTML = testHTML
+      }
+    }
+
+    if (currentHTML) {
+      newPages.push(currentHTML)
+    }
+
+    document.body.removeChild(tempDiv)
+
+    // 过滤掉只有空白内容的页面
+    const filteredPages = newPages.filter(page => {
+      const text = page.replace(/<[^>]+>/g, '').trim()
+      return text.length > 0
+    })
+
+    setPrintPages(filteredPages.length > 0 ? filteredPages : ['<p style="text-align:center;color:#999;">请添加内容</p>'])
+  }
 
   const loadBook = async (bookId: string) => {
     const data = await getBook(bookId)
@@ -58,6 +162,8 @@ export default function BookReader() {
       setBook(data)
       setContent(data.content)
       setEditContent(data.content)
+      // 设置文档标题为书名，PDF 导出时会用作文件名
+      document.title = data.title || '古诗卡片分享'
     }
   }
 
@@ -80,7 +186,7 @@ export default function BookReader() {
     `
     document.body.appendChild(tempDiv)
 
-    const availableHeight = containerSize.height - padding * 2 - 40
+    const availableHeight = containerSize.height - padding * 2 - 20
 
     // 将 HTML 拆分为可独立渲染的原子单元
     const atoms = splitIntoAtoms(html)
@@ -114,7 +220,14 @@ export default function BookReader() {
     }
 
     document.body.removeChild(tempDiv)
-    setPages(newPages.length > 0 ? newPages : ['<p style="text-align:center;color:#999;">请添加内容</p>'])
+
+    // 过滤掉只有空白内容的页面
+    const filteredPages = newPages.filter(page => {
+      const text = page.replace(/<[^>]+>/g, '').trim()
+      return text.length > 0
+    })
+
+    setPages(filteredPages.length > 0 ? filteredPages : ['<p style="text-align:center;color:#999;">请添加内容</p>'])
   }
 
   const splitIntoAtoms = (html: string): string[] => {
@@ -163,11 +276,11 @@ export default function BookReader() {
         const lines = content.split(/<br\s*\/?>/i)
         for (const line of lines) {
           const text = line.replace(/<[^>]+>/g, '').trim()
-          if (text.length > 80) {
+          if (text.length > 40) {
             const chunks = text.split(/(?<=[。])/)
             let currentText = ''
             for (const chunk of chunks) {
-              if ((currentText + chunk).length > 80 && currentText) {
+              if ((currentText + chunk).length > 40 && currentText) {
                 atoms.push(`<blockquote><p>${currentText}</p></blockquote>`)
                 currentText = chunk
               } else {
@@ -196,11 +309,11 @@ export default function BookReader() {
         const lines = content.split(/<br\s*\/?>/i)
         for (const line of lines) {
           const text = line.replace(/<[^>]+>/g, '').trim()
-          if (text.length > 80) {
+          if (text.length > 40) {
             const chunks = text.split(/(?<=[。])/)
             let currentText = ''
             for (const chunk of chunks) {
-              if ((currentText + chunk).length > 80 && currentText) {
+              if ((currentText + chunk).length > 40 && currentText) {
                 atoms.push(`<p>${currentText}</p>`)
                 currentText = chunk
               } else {
@@ -245,6 +358,53 @@ export default function BookReader() {
     }
   }
 
+  // 处理第一页目录，添加页码
+  const processTocPage = (pageHtml: string, pageIndex: number): string => {
+    // 检测是否包含目录列表
+    if (!pageHtml.includes('<ul>') && !pageHtml.includes('<ol>')) return pageHtml
+
+    // 提取列表项
+    const liRegex = /<li[^>]*>(.*?)<\/li>/gi
+    let match
+    const items: { text: string; full: string }[] = []
+
+    while ((match = liRegex.exec(pageHtml)) !== null) {
+      items.push({ text: match[1].replace(/<[^>]+>/g, '').trim(), full: match[0] })
+    }
+
+    if (items.length === 0) return pageHtml
+
+    // 为每个列表项查找页码
+    let processedHtml = pageHtml
+    for (const item of items) {
+      // 规范化标题文本（去除特殊字符和空格）
+      const normalizedTitle = item.text.replace(/[\/\(\)（）\[\]「」\s]+/g, '').toLowerCase()
+
+      // 搜索包含该文本的页面
+      const pageNum = pages.findIndex((p, idx) => {
+        if (idx === 0) return false
+        const text = p.replace(/<[^>]+>/g, '')
+        const normalizedText = text.replace(/[\/\(\)（）\[\]「」\s]+/g, '').toLowerCase()
+        // 完整匹配或包含标题的前8个字符
+        return normalizedText.includes(normalizedTitle) ||
+               (normalizedTitle.length > 5 && normalizedText.includes(normalizedTitle.substring(0, 8)))
+      })
+
+      const page_num = pageNum !== -1 ? pageNum + 1 : '-'
+
+      // 替换列表项，添加虚线和页码
+      const newLi = `<li style="display:flex;align-items:center;gap:4px;list-style:none;margin:4px 0">
+        <span style="flex-shrink:0;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${item.text}">${item.text}</span>
+        <span style="flex:1;border-bottom:1px dashed #ccc;margin:0 4px"></span>
+        <span style="flex-shrink:0;color:#999;font-size:12px;text-align:right">${page_num}</span>
+      </li>`
+
+      processedHtml = processedHtml.replace(item.full, newLi)
+    }
+
+    return processedHtml
+  }
+
   const goToHeading = (headingId: string) => {
     const index = pages.findIndex((page) => page.includes(headingId))
     if (index !== -1) {
@@ -287,6 +447,12 @@ export default function BookReader() {
             className={`px-3 py-1 text-xs rounded ${showEditor ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-600'}`}
           >
             编辑
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="px-3 py-1 text-xs rounded hover:bg-gray-100 text-gray-600"
+          >
+            导出PDF
           </button>
           <span className="text-xs text-gray-400">
             {currentPage + 1} / {pages.length}
@@ -348,7 +514,7 @@ export default function BookReader() {
         ) : (
           <div ref={containerRef} className="flex-1 flex items-center justify-center p-4">
             {containerSize.width > 0 && (
-              <div style={{ width: containerSize.width * 2, height: containerSize.height }}>
+              <div style={{ width: isMobile ? containerSize.width : containerSize.width * 2, height: containerSize.height }}>
                 <HTMLFlipBook
                   ref={flipBookRef}
                   width={containerSize.width}
@@ -365,7 +531,7 @@ export default function BookReader() {
                   maxHeight={containerSize.height}
                   drawShadow={true}
                   flippingTime={1000}
-                  usePortrait={false}
+                  usePortrait={isMobile}
                   startZIndex={0}
                   autoSize={false}
                   maxShadowOpacity={0.5}
@@ -376,18 +542,28 @@ export default function BookReader() {
                   showPageCorners={true}
                   disableFlipByClick={false}
                 >
-                {pages.map((page, i) => (
-                  <div key={i} className="bg-white p-8 overflow-hidden relative" style={{ height: containerSize.height }}>
-                    <div
-                      className="text-sm leading-relaxed text-gray-800 pb-6"
-                      style={{ fontSize: '15px', lineHeight: '1.8' }}
-                      dangerouslySetInnerHTML={{ __html: page }}
-                    />
-                    <div className="absolute bottom-2 left-0 right-0 text-center text-xs text-gray-400">
-                      {i + 1}
+                {pages.map((page, i) => {
+                  const processedPage = processTocPage(page, i)
+                  return (
+                    <div key={i} className="bg-white p-8 overflow-hidden relative" style={{ height: containerSize.height }}>
+                      {/* 页眉 */}
+                      <div className="absolute top-2 left-8 right-8 flex items-center justify-between text-xs text-gray-400">
+                        <span>{book?.title || ''}</span>
+                        <span>{i + 1}</span>
+                      </div>
+                      <div
+                        className="text-sm leading-relaxed text-gray-800"
+                        style={{ fontSize: '15px', lineHeight: '1.8' }}
+                        dangerouslySetInnerHTML={{ __html: processedPage }}
+                      />
+                      <div className="absolute bottom-2 left-8 right-8 flex items-center justify-between text-xs text-gray-400">
+                        <span>@学古诗</span>
+                        <span>{i + 1}</span>
+                        <span>xuegushi.com</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </HTMLFlipBook>
               </div>
             )}
@@ -403,11 +579,11 @@ export default function BookReader() {
             disabled={currentPage === 0}
             className="p-1 hover:bg-gray-100 rounded disabled:opacity-30"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-gray-600">
             {currentPage + 1} / {pages.length}
           </span>
           <button
@@ -415,12 +591,37 @@ export default function BookReader() {
             disabled={currentPage === pages.length - 1}
             className="p-1 hover:bg-gray-100 rounded disabled:opacity-30"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
           </button>
         </div>
       )}
+
+      {/* 打印用隐藏容器 */}
+      <div id="print-container" className="print-container">
+        {printPages.map((page, i) => (
+          <div key={i} className="print-page">
+            <div className="print-content">
+              <div className="print-header">
+                <span>{book?.title || ''}</span>
+                <span>@学古诗</span>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{ fontSize: '15px', lineHeight: '1.8', color: '#1f2937', paddingTop: '24px' }}
+                  dangerouslySetInnerHTML={{ __html: processTocPage(page, i) }}
+                />
+              </div>
+              <div className="print-footer">
+                <span>@学古诗</span>
+                <span>{i + 1}</span>
+                <span>xuegushi.com</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
