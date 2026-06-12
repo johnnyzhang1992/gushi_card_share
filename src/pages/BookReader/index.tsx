@@ -358,8 +358,8 @@ export default function BookReader() {
     }
   }
 
-  // 处理第一页目录，添加页码
-  const processTocPage = (pageHtml: string, pageIndex: number): string => {
+  // 处理目录页，添加页码
+  const processTocPage = (pageHtml: string): string => {
     // 检测是否包含目录列表
     if (!pageHtml.includes('<ul>') && !pageHtml.includes('<ol>')) return pageHtml
 
@@ -543,7 +543,7 @@ export default function BookReader() {
                   disableFlipByClick={false}
                 >
                 {pages.map((page, i) => {
-                  const processedPage = processTocPage(page, i)
+                  const processedPage = processTocPage(page)
                   return (
                     <div key={i} className="bg-white p-8 overflow-hidden relative" style={{ height: containerSize.height }}>
                       {/* 页眉 */}
@@ -610,7 +610,7 @@ export default function BookReader() {
               <div style={{ flex: 1 }}>
                 <div
                   style={{ fontSize: '15px', lineHeight: '1.8', color: '#1f2937', paddingTop: '24px' }}
-                  dangerouslySetInnerHTML={{ __html: processTocPage(page, i) }}
+                  dangerouslySetInnerHTML={{ __html: processTocPage(page) }}
                 />
               </div>
               <div className="print-footer">

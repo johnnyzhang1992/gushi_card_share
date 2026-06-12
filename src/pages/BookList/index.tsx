@@ -77,7 +77,7 @@ export default function BookList() {
   const isImported = (title: string) => books.some(b => b.title === title)
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-full bg-gray-50 p-6">
       <div className="max-w-5xl mx-auto">
         {/* 用户书籍 */}
         <div className="mb-8">

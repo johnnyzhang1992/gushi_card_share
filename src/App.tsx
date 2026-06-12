@@ -84,7 +84,7 @@ function App() {
   }, [splitCards])
 
   return (
-    <div className="flex h-screen bg-gray-50 p-4">
+    <div className="flex h-full bg-gray-50 p-4">
       <div className="w-80 flex-shrink-0">
         <InputArea text={text} onTextChange={setText} />
       </div>
